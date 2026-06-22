@@ -108,7 +108,12 @@ export default function MentorshipForm({ menteeId: propMenteeId, onSubmit: propO
     if (propOnSubmit) {
       propOnSubmit(data);
     } else {
-      addMentorshipPlan({ ...data, menteeId: menteeId || '', contextMeta });
+      addMentorshipPlan({
+        ...data,
+        menteeId: menteeId || '',
+        contextMeta,
+        remedialId: mentorshipContext.remedialId,
+      });
       closeMentorshipForm();
     }
   };

@@ -8,8 +8,10 @@ import {
   FileText, FolderKanban, FileSpreadsheet,
   ChevronLeft, ChevronRight, Home, X,
   Target, Flag, Users, Store, BookOpen, LayoutGrid,
+  GraduationCap,
 } from 'lucide-react';
 import ActionListKanban from './ActionList.Kanban';
+import ActionListMentorship from './ActionList.Mentorship';
 import CommentEditor from '@/components/business/CommentEditor';
 import ExportPanel from '@/components/business/ExportPanel';
 import {
@@ -94,14 +96,122 @@ export default function ActionList() {
   const [calendarView, setCalendarView] = useState(false);
   const [calMonth, setCalMonth] = useState(new Date());
   const [exportPanelOpen, setExportPanelOpen] = useState(false);
+  const [mentionFilter, setMentionFilter] = useState<string>('all');
+  const [commentStartDate, setCommentStartDate] = useState<string>('');
+  const [commentEndDate, setCommentEndDate] = useState<string>('');
+  const [showCommentExport, setShowCommentExport] = useState(false);
 
   const { comments } = useCommentStore();
-  const { confirmRemedialItems } = useBusinessStore();
+  const { confirmRemedialItems, openMentorshipForm, mentorshipPlans } = useBusinessStore();
 
   const handleConfirmRemedial = () => {
     confirmRemedialItems(selectedRemedial);
     setSelectedRemedial([]);
     setActiveTab('kanban');
+  };
+
+  const handleScheduleSingleMentorship = (item: RemedialListItem & { id: string }) => {
+    openMentorshipForm({
+      menteeId: item.employeeId,
+      preSelectedKnowledgePointIds: item.knowledgePoints.map(kp => kp.id),
+      contextMeta: {
+        projectName: item.relatedComplaintType,
+        knowledgePointNames: item.knowledgePoints.map(kp => kp.name),
+        source: 'action',
+        sourceId: item.id,
+      },
+      remedialId: item.id,
+    });
+  };
+
+  const handleBatchScheduleMentorship = () => {
+    if (selectedRemedial.length === 0) return;
+    const items = filteredRemedial.filter(r => selectedRemedial.includes(r.id));
+    if (items.length === 0) return;
+    handleScheduleSingleMentorship(items[0]);
+  };
+
+  const handleExportComments = (format: 'excel' | 'pdf') => {
+    const data = filteredComments;
+    if (data.length === 0) {
+      alert('没有可导出的批注数据');
+      return;
+    }
+
+    if (format === 'excel') {
+      import('xlsx').then(XLSX => {
+        const rows = data.map(c => ({
+          '发布时间': c.createdAt.split('T')[0] + ' ' + c.createdAt.split('T')[1]?.slice(0, 5) || '',
+          '发布人': c.authorName,
+          '角色': c.authorRole,
+          '目标类型': c.targetType,
+          '目标名称': c.targetId || '',
+          '批注内容': c.content,
+          '@人员': c.mentions?.join('、') || '',
+          '附件': c.attachments?.join('、') || '',
+        }));
+        const ws = XLSX.utils.json_to_sheet(rows);
+        ws['!cols'] = [
+          { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 20 },
+          { wch: 60 }, { wch: 20 }, { wch: 30 },
+        ];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, '复盘批注');
+        const dateStr = new Date().toISOString().split('T')[0];
+        XLSX.writeFile(wb, `复盘批注_${dateStr}.xlsx`);
+      });
+    } else {
+      import('jspdf').then(mod => {
+        const jsPDF = mod.default;
+        const doc = new jsPDF();
+        doc.setFontSize(16);
+        doc.text('Review Comments Report', 105, 20, { align: 'center' });
+        doc.setFontSize(10);
+        doc.text(`Generated: ${new Date().toLocaleDateString()} | Total: ${data.length} items`, 105, 28, { align: 'center' });
+
+        let y = 40;
+        const pageHeight = doc.internal.pageSize.height;
+        const margin = 15;
+
+        data.forEach((c, idx) => {
+          if (y > pageHeight - 30) {
+            doc.addPage();
+            y = 20;
+          }
+          doc.setFontSize(11);
+          doc.setFont(undefined, 'bold');
+          doc.text(`${idx + 1}. ${c.authorName} (${c.authorRole})`, margin, y);
+          y += 6;
+          doc.setFontSize(9);
+          doc.setFont(undefined, 'normal');
+          doc.setTextColor(120);
+          doc.text(`Date: ${c.createdAt.split('T')[0]} | Target: ${c.targetType}`, margin, y);
+          y += 6;
+          doc.setTextColor(0);
+          const lines = doc.splitTextToSize(c.content, 180);
+          doc.text(lines, margin, y);
+          y += lines.length * 5;
+
+          if (c.mentions?.length) {
+            doc.setTextColor(200, 80, 80);
+            doc.text(`Mentions: @${c.mentions.join(', @')}`, margin, y);
+            y += 5;
+            doc.setTextColor(0);
+          }
+          if (c.attachments?.length) {
+            doc.setTextColor(60, 80, 160);
+            doc.text(`Attachments: ${c.attachments.join(', ')}`, margin, y);
+            y += 5;
+            doc.setTextColor(0);
+          }
+          y += 6;
+        });
+
+        const dateStr = new Date().toISOString().split('T')[0];
+        doc.save(`复盘批注_${dateStr}.pdf`);
+      });
+    }
+    setShowCommentExport(false);
   };
 
   const filteredRemedial = useMemo(() => {
@@ -124,11 +234,36 @@ export default function ActionList() {
   const filteredComments = useMemo(() => {
     let list = comments;
     if (commentTarget !== 'all') list = list.filter(c => c.targetType === commentTarget);
+    if (mentionFilter !== 'all') {
+      list = list.filter(c => c.mentions?.some(m => m === mentionFilter));
+    }
+    if (commentStartDate) {
+      list = list.filter(c => c.createdAt >= commentStartDate);
+    }
+    if (commentEndDate) {
+      const end = new Date(commentEndDate);
+      end.setHours(23, 59, 59, 999);
+      list = list.filter(c => new Date(c.createdAt) <= end);
+    }
+    if (dateRange !== 'all' && !commentStartDate && !commentEndDate) {
+      const days = parseInt(dateRange, 10);
+      const from = new Date();
+      from.setDate(from.getDate() - days);
+      from.setHours(0, 0, 0, 0);
+      list = list.filter(c => new Date(c.createdAt) >= from);
+    }
     return list;
-  }, [comments, commentTarget]);
+  }, [comments, commentTarget, mentionFilter, commentStartDate, commentEndDate, dateRange]);
+
+  const allMentions = useMemo(() => {
+    const set = new Set<string>();
+    comments.forEach(c => c.mentions?.forEach(m => set.add(m)));
+    return Array.from(set).sort();
+  }, [comments]);
 
   const tabItems = [
     { key: 'kanban', label: '补训计划看板', icon: LayoutGrid },
+    { key: 'mentorship', label: '带教进度', icon: GraduationCap, badge: mentorshipPlans.filter(p => p.status === 'scheduled').length },
     { key: 'remedial', label: '补训名单', icon: Users, badge: filteredRemedial.length },
     { key: 'review', label: '批注', icon: MessageSquare, badge: filteredComments.length },
     { key: 'cert', label: '证书', icon: Award, badge: certBatches.soon.length + certBatches.m3060.length },
@@ -141,6 +276,8 @@ export default function ActionList() {
         <TopNav active={activeTab} onChange={setActiveTab} items={tabItems} />
 
       {activeTab === 'kanban' && <ActionListKanban />}
+
+      {activeTab === 'mentorship' && <ActionListMentorship />}
 
       {activeTab === 'remedial' && (
         <div className="space-y-4">
@@ -173,9 +310,8 @@ export default function ActionList() {
                 <span className="text-xs px-3 py-1.5 rounded-pill bg-brand-rose-50 text-brand-rose-700 font-semibold">
                   已选 <b>{selectedRemedial.length}</b> 人 / 共 <b>{filteredRemedial.length}</b> 人
                 </span>
-                <button onClick={() => console.log('批量带教', selectedRemedial)} className="flex items-center gap-1 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-gradient-rose-gold shadow-sm hover:shadow-md transition-all">
-                  <UserPlus size={13} />批量安排带教
-                </button>
+                <button onClick={handleBatchScheduleMentorship} className="flex items-center gap-1 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-gradient-rose-gold shadow-sm hover:shadow-md transition-all">
+                  <UserPlus size={13} />批量安排带教</button>
                 <button onClick={() => console.log('发送通知')} className="flex items-center gap-1 px-3.5 py-2 rounded-lg text-xs font-semibold text-brand-indigo-700 bg-brand-indigo-50 border border-brand-indigo-100 hover:bg-brand-indigo-100 transition-colors">
                   <Bell size={13} />发送通知
                 </button>
@@ -253,9 +389,8 @@ export default function ActionList() {
                     <button onClick={() => navigate(`/profile/${row.employeeId}`)} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-widget text-[11px] font-semibold text-brand-indigo-700 bg-brand-indigo-50 hover:bg-brand-indigo-100 transition-colors border border-brand-indigo-100">
                       <Eye size={12} />查看画像
                     </button>
-                    <button onClick={() => console.log('安排带教', row.id)} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-widget text-[11px] font-semibold text-white bg-gradient-rose-gold shadow-sm hover:shadow-md transition-all">
-                      <UserPlus size={12} />立即安排
-                    </button>
+                    <button onClick={() => handleScheduleSingleMentorship(row as RemedialListItem & { id: string })} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-widget text-[11px] font-semibold text-white bg-gradient-rose-gold shadow-sm hover:shadow-md transition-all">
+                      <UserPlus size={12} />立即安排</button>
                   </div>
                 ),
               },
@@ -294,37 +429,112 @@ export default function ActionList() {
         <div className="space-y-4">
           <CommentEditor onSubmit={() => {}} />
 
-          <div className="rounded-card border border-neutral-border bg-white shadow-card p-4 flex items-center justify-between gap-4 mb-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-neutral-text-secondary font-medium flex items-center gap-1"><Filter size={12} />目标筛选:</span>
-              {[
-                { k: 'all', label: '全部', icon: Users },
-                { k: 'dashboard', label: '全员', icon: Target },
-                { k: 'store', label: '门店', icon: Store },
-                { k: 'course', label: '岗位', icon: BookOpen },
-                { k: 'project', label: '项目', icon: FolderKanban },
-                { k: 'remedial', label: '整改', icon: Flag },
-              ].map(({ k, label, icon: Icon }) => (
-                <button
-                  key={k}
-                  onClick={() => setCommentTarget(k)}
-                  className={cn(
-                    'flex items-center gap-1 px-3 py-1.5 rounded-widget text-[11px] font-medium transition-all duration-150 border',
-                    commentTarget === k
-                      ? 'bg-gradient-indigo text-white border-transparent shadow-sm'
-                      : 'bg-white border-neutral-border text-neutral-text-secondary hover:border-brand-indigo-200 hover:text-brand-indigo-600'
-                  )}
+          <div className="rounded-card border border-neutral-border bg-white shadow-card p-4 mb-4">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-neutral-text-secondary font-medium flex items-center gap-1"><Filter size={12} />目标:</span>
+                {[
+                  { k: 'all', label: '全部', icon: Users },
+                  { k: 'dashboard', label: '全员', icon: Target },
+                  { k: 'store', label: '门店', icon: Store },
+                  { k: 'course', label: '岗位', icon: BookOpen },
+                  { k: 'project', label: '项目', icon: FolderKanban },
+                  { k: 'remedial', label: '整改', icon: Flag },
+                ].map(({ k, label, icon: Icon }) => (
+                  <button
+                    key={k}
+                    onClick={() => setCommentTarget(k)}
+                    className={cn(
+                      'flex items-center gap-1 px-2.5 py-1.5 rounded-widget text-[11px] font-medium transition-all duration-150 border',
+                      commentTarget === k
+                        ? 'bg-gradient-indigo text-white border-transparent shadow-sm'
+                        : 'bg-white border-neutral-border text-neutral-text-secondary hover:border-brand-indigo-200 hover:text-brand-indigo-600'
+                    )}
+                  >
+                    <Icon size={11} />{label}
+                  </button>
+                ))}
+
+                <div className="h-5 w-px bg-neutral-border/60 mx-1" />
+
+                <select
+                  value={mentionFilter}
+                  onChange={e => setMentionFilter(e.target.value)}
+                  className="text-[11px] px-2.5 py-1.5 rounded-widget border border-neutral-border bg-white text-neutral-text-secondary outline-none focus:border-brand-rose-400"
                 >
-                  <Icon size={11} />{label}
+                  <option value="all">@人员 · 全部</option>
+                  {allMentions.map(m => <option key={m} value={m}>@{m}</option>)}
+                </select>
+
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="date"
+                    value={commentStartDate}
+                    onChange={e => setCommentStartDate(e.target.value)}
+                    placeholder="开始日期"
+                    className="text-[11px] px-2.5 py-1.5 rounded-widget border border-neutral-border bg-white text-neutral-text-secondary outline-none focus:border-brand-rose-400 w-[110px]"
+                  />
+                  <span className="text-[11px] text-neutral-text-tertiary">至</span>
+                  <input
+                    type="date"
+                    value={commentEndDate}
+                    onChange={e => setCommentEndDate(e.target.value)}
+                    placeholder="结束日期"
+                    className="text-[11px] px-2.5 py-1.5 rounded-widget border border-neutral-border bg-white text-neutral-text-secondary outline-none focus:border-brand-rose-400 w-[110px]"
+                  />
+                </div>
+
+                {(commentStartDate || commentEndDate) && (
+                  <button
+                    onClick={() => { setCommentStartDate(''); setCommentEndDate(''); }}
+                    className="text-[11px] text-brand-rose-600 hover:text-brand-rose-700 font-medium"
+                  >
+                    清除日期
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-neutral-text-tertiary">
+                  共 <b className="text-brand-rose-600">{filteredComments.length}</b> 条
+                </span>
+                <button
+                  onClick={() => setShowCommentExport(v => !v)}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-widget text-[11px] font-semibold text-white bg-gradient-rose-gold shadow-sm hover:shadow-md transition-all"
+                >
+                  <Download size={11} /> 导出复盘
                 </button>
-              ))}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-neutral-text-secondary font-medium"><Calendar size={12} /></span>
-              <select value={dateRange} onChange={e => setDateRange(e.target.value)} className="text-xs px-3 py-1.5 rounded-widget border border-neutral-border bg-white text-neutral-text-secondary outline-none focus:border-brand-rose-400">
-                <option value="7">近7天</option><option value="30">近30天</option><option value="90">近90天</option><option value="all">全部</option>
-              </select>
-            </div>
+
+            {showCommentExport && (
+              <div className="mt-4 pt-4 border-t border-neutral-border/60 grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => handleExportComments('excel')}
+                  className="p-3 rounded-lg border border-neutral-border hover:border-brand-indigo-200 hover:bg-brand-indigo-50/40 transition-all flex items-center gap-3 text-left group"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                    <FileSpreadsheet size={18} className="text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-neutral-text-primary">导出 Excel</p>
+                    <p className="text-[11px] text-neutral-text-tertiary mt-0.5">可编辑表格格式</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => handleExportComments('pdf')}
+                  className="p-3 rounded-lg border border-neutral-border hover:border-brand-indigo-200 hover:bg-brand-indigo-50/40 transition-all flex items-center gap-3 text-left group"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                    <FileText size={18} className="text-red-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-neutral-text-primary">导出 PDF</p>
+                    <p className="text-[11px] text-neutral-text-tertiary mt-0.5">精美排版格式</p>
+                  </div>
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="relative pl-12 space-y-5">

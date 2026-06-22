@@ -41,7 +41,7 @@ const monthStart = () => { const d = new Date(); d.setDate(1); return d; };
 
 export default function ExportPanel({ onClose }: ExportPanelProps) {
   const [format, setFormat] = useState<ExportFormat>('pdf');
-  const [options, setOptions] = useState<string[]>(['kpi', 'position', 'certificate']);
+  const [options, setOptions] = useState<string[]>(['kpi', 'project', 'complaint', 'certificate']);
   const [startDate, setStartDate] = useState(formatDate(monthStart()));
   const [endDate, setEndDate] = useState(formatDate(new Date()));
   const [title, setTitle] = useState('月度培训简报');
@@ -52,6 +52,8 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
   const toggleOption = (key: string) => {
     setOptions(prev => prev.includes(key) ? prev.filter(x => x !== key) : [...prev, key]);
   };
+
+  const selectedLabels = EXPORT_OPTIONS.filter(opt => options.includes(opt.key));
 
   const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -685,6 +687,17 @@ export default function ExportPanel({ onClose }: ExportPanelProps) {
             <label className="text-body font-medium text-neutral-text-secondary mb-2 block">
               导出内容 <span className="text-caption text-neutral-text-tertiary ml-1">（已选 {options.length} 项）</span>
             </label>
+            <div className="mb-3 p-3 rounded-lg bg-gradient-to-r from-brand-rose-50/70 to-brand-indigo-50/50 border border-brand-rose-200/50">
+              <div className="text-[11px] font-semibold text-brand-rose-700 mb-2">已选章节预览：</div>
+              <div className="flex flex-wrap gap-1.5">
+                {selectedLabels.map(({ key, label, Icon }) => (
+                  <span key={key} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white/80 text-[11px] font-medium text-brand-indigo-700 border border-brand-indigo-100">
+                    <Icon size={11} />
+                    {label}
+                  </span>
+                ))}
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-2.5">
               {EXPORT_OPTIONS.map(({ key, label, Icon }) => {
                 const checked = options.includes(key);

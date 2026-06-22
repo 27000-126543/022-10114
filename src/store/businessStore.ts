@@ -18,6 +18,7 @@ export interface MentorshipContext {
   menteeId: string;
   preSelectedKnowledgePointIds: string[];
   contextMeta: MentorshipContextMeta | null;
+  remedialId?: string;
 }
 
 export interface ConfirmedRemedialItem {
@@ -44,7 +45,12 @@ export interface MentorshipPlan {
   nextExamDate: string;
   planNotes: string;
   createdAt: string;
+  status: RemedialStatus;
+  progressNotes: string[];
+  examScore?: number;
+  completedAt?: string;
   contextMeta?: MentorshipContextMeta | null;
+  remedialId?: string;
 }
 
 interface BusinessState {
@@ -58,12 +64,15 @@ interface BusinessActions {
     menteeId: string;
     preSelectedKnowledgePointIds: string[];
     contextMeta: MentorshipContextMeta;
+    remedialId?: string;
   }) => void;
   closeMentorshipForm: () => void;
   confirmRemedialItems: (ids: string[]) => void;
   removeRemedialItem: (id: string) => void;
-  addMentorshipPlan: (data: Omit<MentorshipPlan, 'id' | 'createdAt'>) => void;
+  addMentorshipPlan: (data: Omit<MentorshipPlan, 'id' | 'createdAt' | 'status' | 'progressNotes'> & { remedialId?: string }) => void;
   updateRemedialStatus: (id: string, status: RemedialStatus) => void;
+  addProgressNote: (planId: string, note: string) => void;
+  completeMentorship: (planId: string, examScore: number) => void;
 }
 
 const initialMentorshipContext: MentorshipContext = {
@@ -87,6 +96,7 @@ export const useBusinessStore = create<BusinessState & BusinessActions>()(
             menteeId: payload.menteeId,
             preSelectedKnowledgePointIds: payload.preSelectedKnowledgePointIds,
             contextMeta: payload.contextMeta,
+            remedialId: payload.remedialId,
           },
         });
       },
@@ -145,11 +155,13 @@ export const useBusinessStore = create<BusinessState & BusinessActions>()(
           ...data,
           id: `plan-${Date.now()}`,
           createdAt: new Date().toISOString(),
+          status: 'scheduled',
+          progressNotes: [],
         };
         set((state) => ({
           mentorshipPlans: [...state.mentorshipPlans, newPlan],
           confirmedRemedialList: state.confirmedRemedialList.map(item =>
-            item.employeeId === data.menteeId
+            (data.remedialId && item.id === data.remedialId) || (!data.remedialId && item.employeeId === data.menteeId)
               ? { ...item, status: 'scheduled' as RemedialStatus, mentorId: data.mentorId, startDate: data.startDate, nextExamDate: data.nextExamDate }
               : item
           ),
@@ -162,6 +174,35 @@ export const useBusinessStore = create<BusinessState & BusinessActions>()(
             item.id === id ? { ...item, status } : item
           ),
         }));
+      },
+
+      addProgressNote: (planId, note) => {
+        set((state) => ({
+          mentorshipPlans: state.mentorshipPlans.map(plan =>
+            plan.id === planId
+              ? { ...plan, progressNotes: [...plan.progressNotes, note] }
+              : plan
+          ),
+        }));
+      },
+
+      completeMentorship: (planId, examScore) => {
+        const now = new Date().toISOString();
+        set((state) => {
+          const plan = state.mentorshipPlans.find(p => p.id === planId);
+          return {
+            mentorshipPlans: state.mentorshipPlans.map(p =>
+              p.id === planId
+                ? { ...p, status: 'completed', examScore, completedAt: now }
+                : p
+            ),
+            confirmedRemedialList: state.confirmedRemedialList.map(item =>
+              (plan?.remedialId && item.id === plan.remedialId) || (!plan?.remedialId && item.employeeId === plan?.menteeId)
+                ? { ...item, status: 'completed' as RemedialStatus }
+                : item
+            ),
+          };
+        });
       },
     }),
     {
