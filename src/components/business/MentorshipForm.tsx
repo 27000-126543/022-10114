@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { X, UserCheck, CalendarDays, BookMarked, ClipboardList } from 'lucide-react';
+import { X, UserCheck, CalendarDays, BookMarked, ClipboardList, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMockData as fetchMockData, knowledgePoints as defaultKps } from '@/data/mock';
 import type { Employee, KnowledgePoint } from '@/data/types';
+import { useBusinessStore } from '@/store';
 
 interface MentorshipFormProps {
   menteeId?: string;
-  onSubmit: (data: {
+  onSubmit?: (data: {
     mentorId: string;
     knowledgePointIds: string[];
     startDate: string;
     nextExamDate: string;
     planNotes: string;
   }) => void;
-  onCancel: () => void;
+  onCancel?: () => void;
 }
 
 const formatDate = (d: Date): string => d.toISOString().split('T')[0];
@@ -29,7 +30,8 @@ const criticalLevelMap: Record<number, { label: string; color: string; bg: strin
   3: { label: '高', color: 'text-semantic-danger', bg: 'bg-semantic-dangerLight' },
 };
 
-export default function MentorshipForm({ menteeId, onSubmit, onCancel }: MentorshipFormProps) {
+export default function MentorshipForm({ menteeId: propMenteeId, onSubmit: propOnSubmit, onCancel: propOnCancel }: MentorshipFormProps) {
+  const { mentorshipContext, addMentorshipPlan, closeMentorshipForm } = useBusinessStore();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [knowledgePoints, setKnowledgePoints] = useState<KnowledgePoint[]>(defaultKps);
   const [loading, setLoading] = useState(true);
@@ -39,6 +41,10 @@ export default function MentorshipForm({ menteeId, onSubmit, onCancel }: Mentors
   const [nextExamDate, setNextExamDate] = useState(formatDate(daysFromNow(14)));
   const [planNotes, setPlanNotes] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const menteeId = propMenteeId || mentorshipContext.menteeId;
+  const isOpen = !!menteeId || mentorshipContext.open;
+  const contextMeta = mentorshipContext.contextMeta;
 
   useEffect(() => {
     let mounted = true;
@@ -52,6 +58,22 @@ export default function MentorshipForm({ menteeId, onSubmit, onCancel }: Mentors
     })();
     return () => { mounted = false; };
   }, []);
+
+  useEffect(() => {
+    if (mentorshipContext.open && mentorshipContext.preSelectedKnowledgePointIds.length > 0) {
+      setSelectedKps(mentorshipContext.preSelectedKnowledgePointIds);
+    }
+  }, [mentorshipContext.open, mentorshipContext.preSelectedKnowledgePointIds]);
+
+  useEffect(() => {
+    if (mentorshipContext.open) {
+      setMentorId('');
+      setStartDate(formatDate(new Date()));
+      setNextExamDate(formatDate(daysFromNow(14)));
+      setPlanNotes('');
+      setErrors({});
+    }
+  }, [mentorshipContext.open]);
 
   const mentors = employees.filter(e => e.level === 'S' || e.level === 'A');
   const mentee = employees.find(e => e.id === menteeId);
@@ -71,10 +93,24 @@ export default function MentorshipForm({ menteeId, onSubmit, onCancel }: Mentors
     return Object.keys(errs).length === 0;
   };
 
+  const handleCancel = () => {
+    if (propOnCancel) {
+      propOnCancel();
+    } else {
+      closeMentorshipForm();
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    onSubmit({ mentorId, knowledgePointIds: selectedKps, startDate, nextExamDate, planNotes });
+    const data = { mentorId, knowledgePointIds: selectedKps, startDate, nextExamDate, planNotes };
+    if (propOnSubmit) {
+      propOnSubmit(data);
+    } else {
+      addMentorshipPlan({ ...data, menteeId: menteeId || '', contextMeta });
+      closeMentorshipForm();
+    }
   };
 
   if (loading) {
@@ -89,6 +125,10 @@ export default function MentorshipForm({ menteeId, onSubmit, onCancel }: Mentors
     );
   }
 
+  if (!isOpen) return null;
+
+  const showContextBanner = contextMeta && (contextMeta.projectName || contextMeta.complaintType);
+
   return (
     <form onSubmit={handleSubmit} className="rounded-card bg-white shadow-card border border-neutral-border overflow-hidden">
       <div className="px-6 py-4 border-b border-neutral-border flex items-center justify-between bg-gradient-to-r from-brand-indigo-50 to-brand-rose-50/60">
@@ -101,12 +141,25 @@ export default function MentorshipForm({ menteeId, onSubmit, onCancel }: Mentors
             {mentee && <p className="text-caption text-neutral-text-secondary mt-0.5">学员：{mentee.name} · {employees.find(e => e.id === mentee.id)?.level}级</p>}
           </div>
         </div>
-        <button type="button" onClick={onCancel} className="w-8 h-8 rounded-full hover:bg-neutral-border/60 flex items-center justify-center text-neutral-text-secondary transition-colors">
+        <button type="button" onClick={handleCancel} className="w-8 h-8 rounded-full hover:bg-neutral-border/60 flex items-center justify-center text-neutral-text-secondary transition-colors">
           <X size={18} />
         </button>
       </div>
 
       <div className="p-6 space-y-5">
+        {showContextBanner && (
+          <div className="flex items-center gap-2 px-4 py-3 bg-brand-indigo-50 border border-brand-indigo-200 rounded-[8px]">
+            <Info size={16} className="text-brand-indigo-600 flex-shrink-0" />
+            <span className="text-[13px] text-brand-indigo-700 font-medium">
+              带教上下文：
+              {contextMeta.projectName && <span>{contextMeta.projectName}</span>}
+              {contextMeta.projectName && contextMeta.complaintType && <span className="mx-1">·</span>}
+              {contextMeta.complaintType && <span>{contextMeta.complaintType}</span>}
+              {contextMeta.projectName && <span className="mx-1">·</span>}
+              <span>预选中 {selectedKps.length} 个知识点</span>
+            </span>
+          </div>
+        )}
         <div className="grid grid-cols-[120px_1fr] items-start gap-4">
           <label className="text-body font-medium text-neutral-text-secondary pt-2.5 text-right">
             <span className="text-semantic-danger mr-1">*</span>选择导师
@@ -237,7 +290,7 @@ export default function MentorshipForm({ menteeId, onSubmit, onCancel }: Mentors
       <div className="px-6 py-4 border-t border-neutral-border bg-neutral-bg/40 flex items-center justify-end gap-3">
         <button
           type="button"
-          onClick={onCancel}
+          onClick={handleCancel}
           className="px-5 py-2 text-body font-medium text-neutral-text-secondary rounded-[8px] border border-neutral-border bg-white hover:bg-neutral-bg transition-colors"
         >
           取消

@@ -197,6 +197,7 @@ export interface WarningItem {
 }
 
 export interface RemedialKnowledgePoint {
+  id: string;
   name: string;
   examCount: number;
   avgScore: number;

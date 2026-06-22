@@ -487,6 +487,7 @@ export const remedialList: RemedialListItem[] = (() => {
       position: pos.name,
       storeName: store.name,
       knowledgePoints: selectedKps.map(k => ({
+        id: k.id,
         name: k.name,
         examCount: rand(1, 4),
         avgScore: rand(45, 72),

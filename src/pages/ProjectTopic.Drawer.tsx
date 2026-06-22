@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { X, TrendingUp, TrendingDown } from 'lucide-react';
+import { X, Eye, GraduationCap, RefreshCw } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { RosePieChart, DualAxisLineChart } from '@/components/charts';
 import StatBadge from '@/components/common/StatBadge';
 import type { ProjectRowData } from './ProjectTopic.shared';
 import { riskBadgeVariant } from './ProjectTopic.shared';
 import { cn } from '@/lib/utils';
+import { useBusinessStore } from '@/store';
 
 interface DetailDrawerProps {
   open: boolean;
@@ -14,6 +16,8 @@ interface DetailDrawerProps {
 }
 
 export default function DetailDrawer({ open, onClose, project, position }: DetailDrawerProps) {
+  const navigate = useNavigate();
+  const { openMentorshipForm } = useBusinessStore();
   const [tab, setTab] = useState<'business' | 'complaint' | 'training'>('business');
   if (!project) return null;
 
@@ -145,8 +149,13 @@ export default function DetailDrawer({ open, onClose, project, position }: Detai
                   {project.failedEmployees.map((e, i) => (
                     <div key={i} className="px-4 py-3 flex items-center gap-3 hover:bg-neutral-bg/40 transition-colors">
                       <img src={e.avatar} alt="" className="w-8 h-8 rounded-full border-2 border-white shadow-sm flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[12px] font-semibold text-neutral-text-primary">{e.name}</div>
+                      <div
+                        className="flex-1 min-w-0 cursor-pointer"
+                        onClick={() => navigate(`/profile/${e.id}`)}
+                      >
+                        <div className="text-[12px] font-semibold text-neutral-text-primary hover:text-brand-rose-600 transition-colors">
+                          {e.name}
+                        </div>
                         <div className="text-[10px] text-neutral-text-tertiary">{e.position}</div>
                       </div>
                       <span className={cn('text-[12px] font-bold tabular-nums px-2 py-0.5 rounded',
@@ -154,8 +163,35 @@ export default function DetailDrawer({ open, onClose, project, position }: Detai
                         {e.score}分
                       </span>
                       <div className="flex gap-1.5 flex-shrink-0">
-                        <button className="px-2 py-1 text-[10px] rounded border border-brand-rose-300 text-brand-rose-600 font-semibold hover:bg-brand-rose-50 transition-colors">重学</button>
-                        <button className="px-2 py-1 text-[10px] rounded border border-brand-indigo-300 text-brand-indigo-600 font-semibold hover:bg-brand-indigo-50 transition-colors">带教</button>
+                        <button
+                          onClick={() => {
+                            console.log('重学课程:', e.name, e.id);
+                            alert('已安排该员工重学课程');
+                          }}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-[10px] rounded border border-brand-rose-300 text-brand-rose-600 font-semibold hover:bg-brand-rose-50 transition-colors"
+                        >
+                          <RefreshCw size={10} />重学
+                        </button>
+                        <button
+                          onClick={() => navigate(`/profile/${e.id}`)}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-[10px] rounded border border-neutral-border text-neutral-text-secondary font-semibold hover:bg-neutral-bg transition-colors"
+                        >
+                          <Eye size={10} />查看
+                        </button>
+                        <button
+                          onClick={() => openMentorshipForm({
+                            menteeId: e.id,
+                            preSelectedKnowledgePointIds: project.weakKnowledge.map(k => k.id),
+                            contextMeta: {
+                              projectName: project.name,
+                              source: 'project',
+                              sourceId: project.id,
+                            },
+                          })}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-[10px] rounded border border-brand-indigo-300 text-brand-indigo-600 font-semibold hover:bg-brand-indigo-50 transition-colors"
+                        >
+                          <GraduationCap size={10} />带教
+                        </button>
                       </div>
                     </div>
                   ))}

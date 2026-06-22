@@ -2,9 +2,13 @@ import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 import { useGlobalStore } from '../../context/GlobalContext'
+import MentorshipForm from '@/components/business/MentorshipForm'
+import { useBusinessStore } from '@/store'
+import { cn } from '@/lib/utils'
 
 const AppShell = () => {
   const { sidebarCollapsed } = useGlobalStore()
+  const { mentorshipContext, closeMentorshipForm } = useBusinessStore()
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-neutral-bg">
@@ -20,6 +24,20 @@ const AppShell = () => {
           </div>
         </main>
       </div>
+
+      {mentorshipContext.open && (
+        <>
+          <div
+            className={cn('fixed inset-0 bg-black/40 z-50 transition-opacity duration-300')}
+            onClick={closeMentorshipForm}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+            <div className="w-full max-w-2xl pointer-events-auto">
+              <MentorshipForm />
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

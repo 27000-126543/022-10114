@@ -34,7 +34,7 @@ export interface ProjectRowData {
   coverage: number;
   complaintTypes: { name: string; value: number }[];
   recentTrend: { date: string; volume: number; complaint: number; repurchase: number }[];
-  weakKnowledge: { name: string; failRate: number }[];
+  weakKnowledge: { id: string; name: string; failRate: number }[];
   failedEmployees: { id: string; name: string; avatar: string; position: string; score: number }[];
 }
 
@@ -97,7 +97,7 @@ export function buildProjectRows(
     }));
 
     const weakKps = kps.slice(Math.floor(rand() * 10), Math.floor(rand() * 10) + 5).map(k => ({
-      name: k.name, failRate: 20 + Math.floor(rand() * 60),
+      id: k.id, name: k.name, failRate: 20 + Math.floor(rand() * 60),
     }));
 
     const failedEmployees = employees

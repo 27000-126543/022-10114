@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, Star, Eye, GraduationCap } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import type { CompTypeRow } from './ComplaintLink.shared';
 import { POS_MAP } from './ComplaintLink.shared';
+import { useBusinessStore } from '@/store';
 
 function Stars({ n }: { n: number }) {
   return (
@@ -23,17 +25,27 @@ interface ExpandTableProps {
 }
 
 export default function ExpandTable({ rows, initialOpen = [0, 1] }: ExpandTableProps) {
+  const navigate = useNavigate();
+  const { openMentorshipForm } = useBusinessStore();
   const [expandedTypes, setExpandedTypes] = useState<Set<number>>(new Set(initialOpen));
   const [expandedKps, setExpandedKps] = useState<Set<string>>(new Set());
 
   const toggleType = (i: number) => {
     const s = new Set(expandedTypes);
-    s.has(i) ? s.delete(i) : s.add(i);
+    if (s.has(i)) {
+      s.delete(i);
+    } else {
+      s.add(i);
+    }
     setExpandedTypes(s);
   };
   const toggleKp = (key: string) => {
     const s = new Set(expandedKps);
-    s.has(key) ? s.delete(key) : s.add(key);
+    if (s.has(key)) {
+      s.delete(key);
+    } else {
+      s.add(key);
+    }
     setExpandedKps(s);
   };
 
@@ -107,10 +119,25 @@ export default function ExpandTable({ rows, initialOpen = [0, 1] }: ExpandTableP
                               </span>
                               <span className="text-[10px] text-semantic-danger font-semibold min-w-[60px] text-right">不及格×{er.failCount}</span>
                               <div className="flex gap-1.5">
-                                <button className="inline-flex items-center gap-1 px-2 py-1 text-[10px] rounded border border-brand-indigo-300 text-brand-indigo-600 font-bold hover:bg-brand-indigo-50">
+                                <button
+                                  onClick={() => navigate(`/profile/${er.emp.id}`)}
+                                  className="inline-flex items-center gap-1 px-2 py-1 text-[10px] rounded border border-brand-indigo-300 text-brand-indigo-600 font-bold hover:bg-brand-indigo-50 transition-colors"
+                                >
                                   <Eye size={11} />画像
                                 </button>
-                                <button className="inline-flex items-center gap-1 px-2 py-1 text-[10px] rounded border border-brand-rose-300 text-brand-rose-600 font-bold hover:bg-brand-rose-50">
+                                <button
+                                  onClick={() => openMentorshipForm({
+                                    menteeId: er.emp.id,
+                                    preSelectedKnowledgePointIds: [kr.kp.id],
+                                    contextMeta: {
+                                      complaintType: row.type,
+                                      knowledgePointNames: [kr.kp.name],
+                                      source: 'complaint',
+                                      sourceId: kr.kp.id,
+                                    },
+                                  })}
+                                  className="inline-flex items-center gap-1 px-2 py-1 text-[10px] rounded border border-brand-rose-300 text-brand-rose-600 font-bold hover:bg-brand-rose-50 transition-colors"
+                                >
                                   <GraduationCap size={11} />带教
                                 </button>
                               </div>

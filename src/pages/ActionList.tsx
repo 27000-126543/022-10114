@@ -7,16 +7,21 @@ import {
   RefreshCw, Download, Loader2, Printer,
   FileText, FolderKanban, FileSpreadsheet,
   ChevronLeft, ChevronRight, Home, X,
-  Target, Flag, Users, Store, BookOpen,
+  Target, Flag, Users, Store, BookOpen, LayoutGrid,
 } from 'lucide-react';
+import ActionListKanban from './ActionList.Kanban';
+import CommentEditor from '@/components/business/CommentEditor';
+import ExportPanel from '@/components/business/ExportPanel';
 import {
-  remedialList, reviewComments, certificates, employees,
+  remedialList, certificates, employees,
   positions, stores, projects, useMockData,
 } from '@/data/mock';
-import type { RemedialPriority, RemedialListItem, ReviewComment, Certificate } from '@/data/types';
+import type { RemedialPriority, RemedialListItem, Certificate } from '@/data/types';
 import DataTable from '@/components/common/DataTable';
 import KPICard from '@/components/common/KPICard';
 import { cn } from '@/lib/utils';
+import { useCommentStore } from '@/store/commentStore';
+import { useBusinessStore } from '@/store/businessStore';
 
 const priorityStyles: Record<RemedialPriority, string> = {
   high: 'bg-semantic-dangerLight text-semantic-danger border border-semantic-danger/30',
@@ -65,272 +70,21 @@ const TopNav: React.FC<{
   </div>
 );
 
-const CommentEditor: React.FC = () => {
-  const [content, setContent] = useState('');
-  const [target, setTarget] = useState('all');
-  const [publishing, setPublishing] = useState(false);
-  const handlePublish = () => {
-    setPublishing(true);
-    setTimeout(() => { console.log('发布批注:', { target, content }); setContent(''); setPublishing(false); }, 600);
-  };
-  return (
-    <div className="rounded-card border border-neutral-border bg-white shadow-card p-5 mb-4 card-rose-accent">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="w-9 h-9 rounded-full bg-gradient-rose-gold flex items-center justify-center text-white font-bold">院</div>
-        <div>
-          <p className="text-sm font-semibold text-neutral-text-primary">王院长</p>
-          <p className="text-[11px] text-neutral-text-tertiary">发布复盘批注</p>
-        </div>
-      </div>
-      <textarea
-        value={content}
-        onChange={e => setContent(e.target.value)}
-        rows={3}
-        placeholder="输入复盘批注内容，可使用 @员工 进行提醒..."
-        className="w-full rounded-widget border border-neutral-border px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-rose-400/50 focus:border-brand-rose-400 placeholder:text-neutral-text-tertiary"
-      />
-      <div className="mt-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <select value={target} onChange={e => setTarget(e.target.value)} className="text-xs rounded-widget border border-neutral-border px-3 py-1.5 bg-white text-neutral-text-secondary focus:outline-none focus:border-brand-rose-400">
-            <option value="all">@全员</option>
-            <option value="store">@指定门店</option>
-            <option value="position">@指定岗位</option>
-            <option value="project">@项目组</option>
-          </select>
-          <button onClick={() => console.log('添加附件')} className="flex items-center gap-1 px-3 py-1.5 text-xs text-neutral-text-tertiary hover:text-brand-indigo-600 hover:bg-brand-indigo-50 rounded-widget transition-colors">
-            <Paperclip size={13} />添加附件
-          </button>
-        </div>
-        <button
-          onClick={handlePublish}
-          disabled={!content.trim() || publishing}
-          className={cn(
-            'px-5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200',
-            content.trim() && !publishing
-              ? 'text-white bg-gradient-rose-gold shadow-md hover:shadow-lg hover:-translate-y-0.5'
-              : 'text-white/70 bg-neutral-border cursor-not-allowed'
-          )}
-        >
-          {publishing ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
-          {publishing ? '发布中...' : '发布批注'}
-        </button>
-      </div>
-    </div>
-  );
-};
-
-const ExportPanel: React.FC = () => {
-  const [month, setMonth] = useState('2024-06');
-  const [scope, setScope] = useState<string[]>(['kpi', 'training', 'exam']);
-  const [format, setFormat] = useState<'pdf' | 'xlsx' | 'pptx'>('pdf');
-  const [generating, setGenerating] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [generated, setGenerated] = useState(false);
-
-  const handleGenerate = () => {
-    setGenerating(true); setProgress(0); setGenerated(false);
-    const timer = setInterval(() => {
-      setProgress(p => {
-        if (p >= 100) { clearInterval(timer); setGenerating(false); setGenerated(true); return 100; }
-        return p + Math.random() * 15;
-      });
-    }, 200);
-  };
-
-  const toggleScope = (k: string) => {
-    setScope(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]);
-  };
-
-  const history = [
-    { id: 1, date: '2024-05-01', author: '王院长', size: '3.2MB' },
-    { id: 2, date: '2024-04-01', author: '王院长', size: '2.8MB' },
-    { id: 3, date: '2024-03-01', author: '李总监', size: '3.5MB' },
-    { id: 4, date: '2024-02-01', author: '王院长', size: '2.6MB' },
-    { id: 5, date: '2024-01-02', author: '王院长', size: '2.9MB' },
-    { id: 6, date: '2023-12-01', author: '李总监', size: '3.1MB' },
-  ];
-
-  return (
-    <div className="grid grid-cols-12 gap-4">
-      <div className="col-span-7 space-y-4">
-        <div className="rounded-card border border-neutral-border bg-white shadow-card p-5">
-          <div className="flex items-center gap-2 mb-4 pb-3 border-b border-neutral-border/50">
-            <FileSpreadsheet size={18} className="text-brand-rose-500" />
-            <h3 className="text-section-title font-bold font-serif text-brand-indigo-800">月度培训经营简报 · 导出配置</h3>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-neutral-text-primary mb-2">选择月份</label>
-              <input
-                type="month"
-                value={month}
-                onChange={e => setMonth(e.target.value)}
-                className="w-full rounded-widget border border-neutral-border px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-rose-400/50 focus:border-brand-rose-400"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-neutral-text-primary mb-2">报告模块</label>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { k: 'kpi', label: 'KPI 总览数据', icon: Target },
-                  { k: 'training', label: '培训完成情况', icon: BookOpen },
-                  { k: 'exam', label: '考试成绩分析', icon: FileText },
-                  { k: 'complaint', label: '客诉关联分析', icon: AlertTriangle },
-                  { k: 'certificate', label: '证书持有情况', icon: Award },
-                  { k: 'remedial', label: '整改计划进度', icon: Flag },
-                ].map(({ k, label, icon: Icon }) => (
-                  <button
-                    key={k}
-                    onClick={() => toggleScope(k)}
-                    className={cn(
-                      'text-left p-3 rounded-widget border transition-all duration-150 flex items-center gap-2.5',
-                      scope.includes(k)
-                        ? 'border-brand-rose-400 bg-brand-rose-50 text-brand-rose-700'
-                        : 'border-neutral-border bg-white hover:border-brand-indigo-200 text-neutral-text-secondary'
-                    )}
-                  >
-                    <span className={cn(
-                      'w-5 h-5 rounded border flex items-center justify-center flex-shrink-0',
-                      scope.includes(k) ? 'bg-gradient-rose-gold border-transparent' : 'border-neutral-border'
-                    )}>
-                      {scope.includes(k) && <CheckCircle2 size={12} className="text-white" />}
-                    </span>
-                    <Icon size={14} />
-                    <span className="text-xs font-medium">{label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-neutral-text-primary mb-2">导出格式</label>
-              <div className="flex items-center gap-2">
-                {(['pdf', 'xlsx', 'pptx'] as const).map(f => (
-                  <button
-                    key={f}
-                    onClick={() => setFormat(f)}
-                    className={cn(
-                      'px-4 py-2 rounded-widget text-xs font-semibold border transition-all duration-150 uppercase',
-                      format === f
-                        ? 'bg-gradient-indigo text-white border-transparent shadow-sm'
-                        : 'bg-white border-neutral-border text-neutral-text-secondary hover:border-brand-indigo-200'
-                    )}
-                  >
-                    {f === 'pdf' ? <FileText size={14} /> : f === 'xlsx' ? <FileSpreadsheet size={14} /> : <Printer size={14} />}
-                    <span className="ml-1.5">{f}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <button
-              onClick={handleGenerate}
-              disabled={generating || scope.length === 0}
-              className={cn(
-                'w-full py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all duration-200',
-                generating || scope.length === 0
-                  ? 'bg-neutral-border text-white/70 cursor-not-allowed'
-                  : 'text-white bg-gradient-rose-gold shadow-md hover:shadow-lg hover:-translate-y-0.5'
-              )}
-            >
-              {generating ? (
-                <><Loader2 size={16} className="animate-spin" />生成中... {Math.floor(Math.min(progress, 100))}%</>
-              ) : generated ? (
-                <><Download size={16} />下载 {month} 简报.{format}</>
-              ) : (
-                <><FileDown size={16} />生成并导出简报</>
-              )}
-            </button>
-            {generating && (
-              <div className="h-2 rounded-pill bg-neutral-border/50 overflow-hidden">
-                <div className="h-full bg-gradient-rose-gold rounded-pill transition-all duration-300" style={{ width: `${Math.min(progress, 100)}%` }} />
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="rounded-card border border-neutral-border bg-white shadow-card p-5">
-          <div className="flex items-center gap-2 mb-4 pb-3 border-b border-neutral-border/50">
-            <FolderKanban size={16} className="text-brand-indigo-500" />
-            <h3 className="text-sm font-bold text-neutral-text-primary">历史导出记录</h3>
-          </div>
-          <div className="space-y-2">
-            {history.map(h => (
-              <div key={h.id} className="flex items-center gap-3 p-3 rounded-widget hover:bg-brand-indigo-50/40 border border-transparent hover:border-brand-indigo-100 transition-all duration-150">
-                <div className="w-10 h-10 rounded-lg bg-gradient-indigo/10 flex items-center justify-center flex-shrink-0">
-                  <FileText size={18} className="text-brand-indigo-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-neutral-text-primary">{h.date} 月度培训经营简报.pdf</p>
-                  <p className="text-[10px] text-neutral-text-tertiary">生成人: {h.author} · {h.size}</p>
-                </div>
-                <button onClick={() => console.log('下载', h.id)} className="flex items-center gap-1 px-3 py-1.5 rounded-widget text-xs font-semibold text-brand-indigo-700 bg-brand-indigo-50 hover:bg-brand-indigo-100 transition-colors">
-                  <Download size={12} />下载
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="col-span-5">
-        <div className="rounded-card border border-neutral-border bg-white shadow-card p-5 sticky top-4">
-          <div className="flex items-center justify-between mb-3 pb-2 border-b border-neutral-border/50">
-            <h3 className="text-sm font-bold text-neutral-text-primary flex items-center gap-2">
-              <Eye size={15} className="text-brand-rose-500" />实时预览
-            </h3>
-            <span className="text-[10px] px-2 py-0.5 rounded-pill bg-brand-indigo-50 text-brand-indigo-700 font-medium">缩小版</span>
-          </div>
-          <div className="border border-neutral-border rounded-lg p-4 bg-neutral-bg/30 aspect-[3/4] overflow-hidden">
-            <div className="text-center mb-3">
-              <div className="text-[11px] font-bold font-serif text-brand-indigo-800">{month} 月度培训经营简报</div>
-              <div className="w-12 h-0.5 bg-gradient-rose-gold mx-auto mt-1 rounded-full" />
-            </div>
-            <div className="space-y-2">
-              {scope.includes('kpi') && (
-                <div className="bg-white rounded p-2 border border-neutral-border/50">
-                  <div className="text-[8px] font-semibold text-neutral-text-primary mb-1">KPI总览</div>
-                  <div className="grid grid-cols-2 gap-1">
-                    <div className="text-[7px] bg-semantic-successLight/50 rounded p-1"><span className="block text-[10px] font-bold text-semantic-success">87.5%</span><span className="text-neutral-text-tertiary">培训完成率</span></div>
-                    <div className="text-[7px] bg-brand-rose-50 rounded p-1"><span className="block text-[10px] font-bold text-brand-rose-600">82.3分</span><span className="text-neutral-text-tertiary">考试平均分</span></div>
-                  </div>
-                </div>
-              )}
-              {scope.includes('training') && (
-                <div className="bg-white rounded p-2 border border-neutral-border/50">
-                  <div className="text-[8px] font-semibold text-neutral-text-primary mb-1">培训模块</div>
-                  <div className="h-12 bg-gradient-to-br from-brand-indigo-100/50 to-brand-rose-100/50 rounded flex items-end gap-0.5 px-1 pb-0.5">
-                    {Array.from({length:12}).map((_,i)=>(
-                      <div key={i} className="flex-1 bg-gradient-to-t from-brand-indigo-500 to-brand-indigo-300 rounded-t" style={{height:`${40+Math.sin(i)*25}%`}} />
-                    ))}
-                  </div>
-                </div>
-              )}
-              {scope.includes('exam') && (
-                <div className="bg-white rounded p-2 border border-neutral-border/50">
-                  <div className="text-[8px] font-semibold text-neutral-text-primary mb-1">考试分析</div>
-                  <div className="flex items-center justify-between text-[7px] text-neutral-text-tertiary">
-                    <span>通过人数 <b className="text-semantic-success">186</b></span>
-                    <span>未通过 <b className="text-semantic-danger">14</b></span>
-                    <span>通过率 <b className="text-brand-rose-600">93%</b></span>
-                  </div>
-                </div>
-              )}
-              {scope.includes('complaint') && (
-                <div className="bg-white rounded p-2 border border-neutral-border/50">
-                  <div className="text-[8px] font-semibold text-neutral-text-primary mb-1">客诉关联</div>
-                  <div className="text-[7px] text-semantic-danger flex items-center gap-1"><AlertTriangle size={9} />本月共8起，较上月减少2起</div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+function formatTimeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return '刚刚';
+  if (mins < 60) return `${mins}分钟前`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}小时前`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}天前`;
+  return iso.split('T')[0];
+}
 
 export default function ActionList() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('remedial');
+  const [activeTab, setActiveTab] = useState('kanban');
   const [selectedRemedial, setSelectedRemedial] = useState<string[]>([]);
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [filterStore, setFilterStore] = useState<string>('all');
@@ -339,6 +93,16 @@ export default function ActionList() {
   const [dateRange, setDateRange] = useState('30');
   const [calendarView, setCalendarView] = useState(false);
   const [calMonth, setCalMonth] = useState(new Date());
+  const [exportPanelOpen, setExportPanelOpen] = useState(false);
+
+  const { comments } = useCommentStore();
+  const { confirmRemedialItems } = useBusinessStore();
+
+  const handleConfirmRemedial = () => {
+    confirmRemedialItems(selectedRemedial);
+    setSelectedRemedial([]);
+    setActiveTab('kanban');
+  };
 
   const filteredRemedial = useMemo(() => {
     let list = remedialList as (RemedialListItem & { id: string })[];
@@ -358,21 +122,25 @@ export default function ActionList() {
   }, []);
 
   const filteredComments = useMemo(() => {
-    let list = reviewComments;
+    let list = comments;
     if (commentTarget !== 'all') list = list.filter(c => c.targetType === commentTarget);
     return list;
-  }, [commentTarget]);
+  }, [comments, commentTarget]);
 
   const tabItems = [
-    { key: 'remedial', label: '下周补训名单', icon: Users, badge: filteredRemedial.length },
-    { key: 'review', label: '院长复盘批注', icon: MessageSquare, badge: filteredComments.length },
-    { key: 'cert', label: '证书到期提醒', icon: Award, badge: certBatches.soon.length + certBatches.m3060.length },
-    { key: 'export', label: '月度简报导出', icon: FileSpreadsheet },
+    { key: 'kanban', label: '补训计划看板', icon: LayoutGrid },
+    { key: 'remedial', label: '补训名单', icon: Users, badge: filteredRemedial.length },
+    { key: 'review', label: '批注', icon: MessageSquare, badge: filteredComments.length },
+    { key: 'cert', label: '证书', icon: Award, badge: certBatches.soon.length + certBatches.m3060.length },
+    { key: 'export', label: '导出', icon: FileSpreadsheet },
   ];
 
   return (
-    <div className="animate-fade-in-up">
-      <TopNav active={activeTab} onChange={setActiveTab} items={tabItems} />
+    <>
+      <div className="animate-fade-in-up">
+        <TopNav active={activeTab} onChange={setActiveTab} items={tabItems} />
+
+      {activeTab === 'kanban' && <ActionListKanban />}
 
       {activeTab === 'remedial' && (
         <div className="space-y-4">
@@ -511,7 +279,7 @@ export default function ActionList() {
                   </div>
                 </div>
                 <button
-                  onClick={() => { console.log('加入补训计划', selectedRemedial); setSelectedRemedial([]); }}
+                  onClick={handleConfirmRemedial}
                   className="px-6 py-2.5 rounded-lg text-sm font-bold text-white bg-gradient-rose-gold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-2 ripple"
                 >
                   <Target size={15} />确认加入下周补训计划
@@ -524,7 +292,8 @@ export default function ActionList() {
 
       {activeTab === 'review' && (
         <div className="space-y-4">
-          <CommentEditor />
+          <CommentEditor onSubmit={() => {}} />
+
           <div className="rounded-card border border-neutral-border bg-white shadow-card p-4 flex items-center justify-between gap-4 mb-4">
             <div className="flex items-center gap-2">
               <span className="text-xs text-neutral-text-secondary font-medium flex items-center gap-1"><Filter size={12} />目标筛选:</span>
@@ -560,7 +329,7 @@ export default function ActionList() {
 
           <div className="relative pl-12 space-y-5">
             <div className="absolute left-[15px] top-2 bottom-2 w-[2px] bg-gradient-to-b from-brand-rose-300 via-brand-indigo-200 to-transparent rounded-full" />
-            {filteredComments.map((c, idx) => {
+            {[...filteredComments].reverse().map((c, idx) => {
               const targetName = c.targetId ? (
                 c.targetType === 'course' ? `课程 ${c.targetId}` :
                 c.targetType === 'store' ? stores.find(s => s.id === c.targetId)?.name :
@@ -579,7 +348,7 @@ export default function ActionList() {
                           <p className="text-sm font-bold text-neutral-text-primary">{c.authorName}</p>
                           <p className="text-[11px] text-neutral-text-tertiary flex items-center gap-2 mt-0.5">
                             <span className="px-1.5 py-px rounded-pill bg-gradient-rose-gold/10 text-brand-rose-700 font-medium">{c.authorRole}</span>
-                            <span>{c.createdAt.replace('T', ' ')}</span>
+                            <span>{formatTimeAgo(c.createdAt)}</span>
                           </p>
                         </div>
                       </div>
@@ -591,13 +360,13 @@ export default function ActionList() {
                     </div>
                     <div className="px-5 py-4">
                       <p className="text-sm leading-7 text-neutral-text-primary whitespace-pre-wrap">
-                        {c.content.split(/(@\S+)/g).map((part, i) =>
+                        {c.content.split(/(@[\u4e00-\u9fa5A-Za-z]+)/g).map((part, i) =>
                           part.startsWith('@') ? (
                             <span key={i} className="font-semibold text-brand-rose-600 bg-brand-rose-50 px-1 rounded mx-0.5">{part}</span>
                           ) : <span key={i}>{part}</span>
                         )}
                       </p>
-                      {c.attachments.length > 0 && (
+                      {c.attachments?.length > 0 && (
                         <div className="mt-3 flex flex-wrap gap-2 pt-3 border-t border-neutral-border/40">
                           {c.attachments.map((f, i) => (
                             <button key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-widget border border-brand-indigo-100 bg-brand-indigo-50/50 hover:bg-brand-indigo-50 hover:border-brand-indigo-200 transition-colors group">
@@ -605,6 +374,14 @@ export default function ActionList() {
                               <span className="text-[11px] font-medium text-brand-indigo-700">{f}</span>
                               <Download size={11} className="text-neutral-text-tertiary group-hover:text-brand-indigo-600 transition-colors" />
                             </button>
+                          ))}
+                        </div>
+                      )}
+                      {c.mentions?.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          <span className="text-[11px] text-neutral-text-tertiary">提及：</span>
+                          {c.mentions.map((m, i) => (
+                            <span key={i} className="text-[11px] px-2 py-0.5 rounded bg-brand-rose-50 text-brand-rose-700 font-medium">@{m}</span>
                           ))}
                         </div>
                       )}
@@ -780,7 +557,24 @@ export default function ActionList() {
         </div>
       )}
 
-      {activeTab === 'export' && <ExportPanel />}
-    </div>
+      {activeTab === 'export' && (
+        <div className="rounded-card border border-neutral-border bg-white shadow-card p-8 text-center">
+          <div className="w-20 h-20 rounded-full bg-gradient-rose-gold/10 flex items-center justify-center mx-auto mb-4">
+            <FileSpreadsheet size={36} className="text-brand-rose-500" />
+          </div>
+          <h3 className="text-lg font-bold font-serif text-brand-indigo-800 mb-2">月度培训经营简报导出</h3>
+          <p className="text-sm text-neutral-text-secondary mb-6">一键生成包含KPI总览、项目培训缺口、客诉关联和证书到期提醒的完整报告</p>
+          <button
+            onClick={() => setExportPanelOpen(true)}
+            className="px-8 py-3 rounded-lg text-sm font-bold text-white bg-gradient-rose-gold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 inline-flex items-center gap-2"
+          >
+            <FileDown size={16} /> 打开导出面板
+          </button>
+        </div>
+      )}
+      </div>
+
+      {exportPanelOpen && <ExportPanel onClose={() => setExportPanelOpen(false)} />}
+    </>
   );
 }

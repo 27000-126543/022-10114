@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Bold, Italic, List, AtSign, Paperclip, X, Save, Send,
-  FileText, User, Clock
+  FileText, User, Clock, Check
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useMockData as fetchMockData, reviewComments as defaultComments } from '@/data/mock';
-import type { Employee, ReviewComment } from '@/data/types';
+import { useMockData as fetchMockData } from '@/data/mock';
+import type { Employee } from '@/data/types';
+import { useCommentStore } from '@/store/commentStore';
 
 interface CommentEditorProps {
   placeholder?: string;
@@ -47,23 +48,31 @@ export default function CommentEditor({
   const [showMentionList, setShowMentionList] = useState(false);
   const [mentionSearch, setMentionSearch] = useState('');
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [comments, setComments] = useState<ReviewComment[]>(defaultComments);
   const [loading, setLoading] = useState(true);
+  const [showDraftSaved, setShowDraftSaved] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { comments, draft, addComment, saveDraft, clearDraft } = useCommentStore();
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       const emps = await fetchMockData('employees');
-      const cmts = await fetchMockData('comments');
       if (!mounted) return;
       setEmployees(emps);
-      setComments(cmts);
       setLoading(false);
     })();
     return () => { mounted = false; };
   }, []);
+
+  useEffect(() => {
+    if (draft && !loading) {
+      setContent(draft.content);
+      setAttachments(draft.attachments);
+      setMentions(draft.mentions);
+    }
+  }, [draft, loading]);
 
   const filteredEmployees = employees.filter(e =>
     e.name.includes(mentionSearch) || mentionSearch === ''
@@ -114,16 +123,27 @@ export default function CommentEditor({
   };
 
   const handleSaveDraft = () => {
-    localStorage.setItem('comment_draft', JSON.stringify({ content, attachments, mentions }));
-    alert('草稿已保存');
+    saveDraft({ content, attachments, mentions });
+    setShowDraftSaved(true);
+    setTimeout(() => setShowDraftSaved(false), 3000);
   };
 
   const handleSubmit = () => {
     if (!content.trim()) return;
+    addComment({
+      authorId: 'emp-0',
+      authorName: '王院长',
+      authorRole: '院长',
+      targetType: 'dashboard',
+      content,
+      mentions,
+      attachments,
+    });
     onSubmit(content, attachments, mentions);
     setContent('');
     setAttachments([]);
     setMentions([]);
+    clearDraft();
   };
 
   const applyFormat = (format: string) => {
@@ -283,14 +303,21 @@ export default function CommentEditor({
         </div>
 
         <div className="flex items-center justify-between">
-          {mentions.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-caption text-neutral-text-tertiary">提及：</span>
-              {mentions.map(m => (
-                <span key={m} className="text-caption px-2 py-0.5 rounded bg-brand-rose-50 text-brand-rose-700 font-medium">@{m}</span>
-              ))}
-            </div>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {mentions.length > 0 && (
+              <>
+                <span className="text-caption text-neutral-text-tertiary">提及：</span>
+                {mentions.map(m => (
+                  <span key={m} className="text-caption px-2 py-0.5 rounded bg-brand-rose-50 text-brand-rose-700 font-medium">@{m}</span>
+                ))}
+              </>
+            )}
+            {showDraftSaved && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-semantic-success/10 text-semantic-success text-caption font-medium animate-fade-in">
+                <Check size={12} /> 草稿已保存
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-2 ml-auto">
             {onCancel && (
               <button
@@ -332,7 +359,7 @@ export default function CommentEditor({
           <span className="text-caption text-neutral-text-tertiary">（{comments.length}条）</span>
         </div>
         <div className="p-5 space-y-5 max-h-[380px] overflow-y-auto">
-          {comments.map((cmt, idx) => (
+          {[...comments].reverse().map((cmt, idx) => (
             <div key={cmt.id} className="relative pl-6">
               {idx !== comments.length - 1 && (
                 <div className="absolute left-2.5 top-8 bottom-[-20px] w-px bg-gradient-to-b from-brand-rose-300/60 to-transparent" />
