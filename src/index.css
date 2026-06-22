@@ -1,0 +1,153 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Noto Sans SC', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #2C3E50;
+  background-color: #F7F8FA;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --brand-indigo-50: #EEF2F9;
+  --brand-indigo-100: #D9E2F0;
+  --brand-indigo-200: #B3C5E1;
+  --brand-indigo-300: #8DA8D2;
+  --brand-indigo-400: #678BC3;
+  --brand-indigo-500: #416EB4;
+  --brand-indigo-600: #2E528F;
+  --brand-indigo-700: #1E3A5F;
+  --brand-indigo-800: #172D4A;
+  --brand-indigo-900: #0F1F34;
+
+  --brand-rose-50: #FBF7EF;
+  --brand-rose-100: #F4EAD6;
+  --brand-rose-300: #DDC084;
+  --brand-rose-500: #C9A96E;
+  --brand-rose-700: #8B6E3F;
+
+  --brand-purple-500: #8B7EC8;
+
+  --semantic-success: #6FCF97;
+  --semantic-warning: #F2994A;
+  --semantic-danger: #E05A5A;
+  --semantic-info: #2D9CDB;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100vh;
+  background-color: #F7F8FA;
+  overflow-x: hidden;
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(30, 58, 95, 0.15);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(30, 58, 95, 0.28);
+}
+
+/* 等宽数字渲染 */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ECharts Tooltip 统一样式 */
+.echarts-tooltip {
+  background: rgba(15, 31, 52, 0.92) !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 10px 14px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
+  font-family: 'Noto Sans SC', sans-serif !important;
+  font-size: 12px !important;
+  color: #FFFFFF !important;
+}
+
+/* 通用卡片 hover 交互 */
+.card-hover {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.25s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(30, 58, 95, 0.10);
+  border-color: rgba(201, 169, 110, 0.35);
+}
+
+/* 底部玫瑰金高亮线 */
+.card-rose-accent {
+  position: relative;
+}
+.card-rose-accent::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 0;
+  background: linear-gradient(90deg, #DDC084, #C9A96E, #B08D52);
+  border-radius: 0 0 12px 12px;
+  transition: height 0.25s ease;
+}
+.card-rose-accent:hover::after {
+  height: 3px;
+}
+
+/* 隐藏 number input 箭头 */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* 按钮点击涟漪效果 */
+.ripple {
+  position: relative;
+  overflow: hidden;
+}
+.ripple::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, rgba(255,255,255,0.25) 0%, transparent 60%);
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 0.3s, transform 0.4s;
+}
+.ripple:active::before {
+  opacity: 1;
+  transform: scale(2);
+  transition: 0s;
+}
